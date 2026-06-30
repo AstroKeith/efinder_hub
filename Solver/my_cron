@@ -1,2 +1,2 @@
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-@reboot efinder python /home/efinder/Solver/Hub.py &
+@reboot efinder venv-efinder/bin/python /home/efinder/Solver/Hub.py &
