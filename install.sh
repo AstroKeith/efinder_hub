@@ -57,6 +57,8 @@ sudo apt install -y python3-rpi-lgpio
 cd /home/efinder/Solver
 unzip drive.zip
 
+venv-efinder/bin/python venv-efinder/bin/pip install Solver/tetra3-0.1.0-cp311-cp311-manylinux_2_35_aarch64.whl
+
 cd $HOME
 echo " "
 echo "*****************************************************************************"
