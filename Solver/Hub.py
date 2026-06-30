@@ -16,21 +16,21 @@ import socket
 from pathlib import Path
 home_path = str(Path.home())
 param = dict()
-import Display_Lite
-version = "1_5"
-handpad = Display_Lite.Handpad(version,"right")
+import Display_Lite_2
+import serial.tools.list_ports as list_ports
+version = "1_8"
+handpad = Display_Lite_2.Handpad(version,"left")
 handpad.display('Nexus eFinder','Hub Control Box','Version '+ version)
 import time
 import math
-from PIL import Image, ImageDraw,ImageFont, ImageEnhance
+from PIL import Image, ImageDraw,ImageFont
 from datetime import datetime, timezone
 import numpy as np
 np.math = math
 import Coordinates_wifi_2
 from gpiozero import Button
 from skyfield.api import load
-#from skyfield.timelib import Timescale
-#from skyfield.vectorlib import VectorSum
+
 
 dispBright = 241
 x = 1
@@ -41,12 +41,12 @@ mode = "Manual"
 header32 = b"\x93NUMPY\x01\x00v\x00{'descr': '|u1', 'fortran_order': False, 'shape': (32, 32), }                                                         "
 solved_radec = 0,0
 goto = False
-con = False
+timesync = location = con =False
 Lat = Long = 0
 ts = load.timescale()
 
 def serveWifi(): # serve WiFi port
-    global solved_radec, goto_altaz, param, goto, timeOffset, raStr, decStr, con, Lat, Long, arr, month, year
+    global solved_radec, goto_altaz, param, goto, timeOffset, raStr, decStr, Lat, Long, arr, month, year, location, timesync, con
     print ('starting wifi server')
     host = ''
     port = 4060
@@ -90,8 +90,11 @@ def serveWifi(): # serve WiFi port
                                     client.send(b'1')
                                     Long = x[3:].split('*')
                                     Long = int(Long[0]) + int(Long[1])/60 # Longitude as decimal degrees West +ve
-                                    if Long > 180:
-                                        Long=Long-360
+                                    location = True
+                                    print('rawLong',Long)
+                                    Long = -Long # SkySafari convention (wrong!!)
+                                    print ('Long',Long)
+                                    print('Location set:',location)
                                 elif x[1:3] == 'SG':
                                     client.send(b'1')
                                     timeOffset = x[3:]
@@ -112,6 +115,7 @@ def serveWifi(): # serve WiFi port
                                     arr[5][1] = 'Lgt: ' + str(int(Long)) + ' Lat: ' + str(int(Lat))
                                     arr[5][2] = 'T: ' + timeStr + ' ' + str(-1*int(float(timeOffset)))
                                     handpad.display(arr[5][0], arr[5][1], arr[5][2])
+                                    timesync = True
                                     time.sleep(1)
                                     handpad.display(arr[1][0], arr[1][1], arr[1][2])
                                 elif x[1:3] == 'Sr': # target RA
@@ -168,14 +172,14 @@ def flip():
 
 def get_param():
     global param
-    if os.path.exists(home_path + "/Solver/box.config") == True:
-        with open(home_path + "/Solver/box.config") as h:
+    if os.path.exists(home_path + "/Solver/hub.config") == True:
+        with open(home_path + "/Solver/hub.config") as h:
             for line in h:
                 line = line.strip("\n").split(":")
                 param[line[0]] = str(line[1])
 
 def save_param():
-    with open(home_path + "/Solver/box.config", "w") as h:
+    with open(home_path + "/Solver/hub.config", "w") as h:
         for key, value in param.items():
             h.write("%s:%s\n" % (key, value))
 
@@ -190,18 +194,18 @@ def doButton(button):
             stop = True
         #time.sleep(0.1)
 
-    if pin == '5':
+    if pin == '19': # U
         time.sleep(0.05)
-        exec(arr[x][3])
-    elif pin == '6':
+        exec(arr[x][3]) # U
+    elif pin == '13': # D
         time.sleep(0.05)
-        exec(arr[x][4])
-    elif pin == '13':
+        exec(arr[x][4]) # D
+    elif pin == '5': # L
         time.sleep(0.05)
-        exec(arr[x][5])
-    elif pin == '19':
+        exec(arr[x][5]) # L 
+    elif pin == '6': # R
         time.sleep(0.05)
-        exec(arr[x][6])
+        exec(arr[x][6]) # R
 
 
 def AdjBright(c):
@@ -336,13 +340,13 @@ def flipMode():
     handpad.display(arr[x][0], arr[x][1], arr[x][2])
 
 def check_ss():
-    if con == True:
+    if location and timesync:
         left_right(-1)
 
 def conv_altaz(ra, dec):
     t = ts.now()
     Rad = math.pi / 180
-    LST = t.gmst - Long / 15  # as decimal hours
+    LST = t.gmst + Long / 15  # as decimal hours
     if LST < 0:
         LST += 24
     elif LST > 24:
@@ -350,7 +354,7 @@ def conv_altaz(ra, dec):
     #ra = ra * 15  # need to work in degrees now
     LSTd = LST * 15
     LHA = (LSTd - ra + 360) - ((int)((LSTd - ra + 360) / 360)) * 360
-    print('time',t,'LST',LST,'LHA',LHA,'ra',ra,'dec',dec,'Lat',Lat,'Long',Long)
+    print('LST',coordinates.hh2dms(LST))
     x = math.cos(LHA * Rad) * math.cos(dec * Rad)
     y = math.sin(LHA * Rad) * math.cos(dec * Rad)
     z = math.sin(dec * Rad)
@@ -389,27 +393,79 @@ def checkNTP():
     except:
         return False
 
-get_param()      
+def parseGPS(data):
+    sdata = data.split(",")
+    print(data)
+    date = sdata[9][2:4] + '/' + sdata[9][0:2] + '/' + sdata[9][4:6]
+    timestr = sdata[1][0:2] + ":" + sdata[1][2:4] + ":" + sdata[1][4:6]
+    lat = float(sdata[3][0:2]) + float(sdata[3][2:])/60
+    if sdata[4] != "N":      #latitude direction N/S
+        lat = -1 * lat
+    lon = float(sdata[5][0:2]) + float(sdata[5][2:])/60
+    if sdata[6] != "E":      #longitude direction E/W
+        lon = -1 * lon
+    return date, timestr, lat, lon
+
+def getUsb(port):
+    all_ports = list_ports.comports()
+    i=0
+    while i < len(all_ports):
+        serial_device = all_ports[i]
+        print (serial_device)
+        if port in str(serial_device.description):
+            print (port,':',serial_device.device)
+            return serial_device.device
+        i +=1
+    return 'not found'
+    
+def getGps(usbGps):
+    global location, con
+    sergps = serial.Serial(usbGps,baudrate=115200)
+    while True:
+        data = sergps.readline().decode("ascii")
+        if data[0:6] == "$GNRMC":
+            location = con = True
+            try:
+                reply = parseGPS(data)
+                return reply
+            except:
+                pass
+
+get_param()
+
+# initialize coordinates class with hub.config month and year
+# will use dateSet if better values later found
 coordinates = Coordinates_wifi_2.Coordinates(int(param["year"]), int(param["month"]))
+
+gpsUsb = getUsb('GNSS')
+if gpsUsb != 'not found': # GPS dongle found, get date/time and location from it
+    handpad.display('GPS Dongle found','Acquiring fix','')
+    date,timestr,Lat,Long = getGps(gpsUsb)
+    timesync = location = True
+    print('GPS data:',date,timestr,Lat,Long)
+    handpad.display('GPS fix, Setting','location & time','')
+    coordinates.dateSet(0,timestr,date)
+    time.sleep(1)                          
+else:
+    print("no gps dongle found")
+
 dxStr = dyStr = ""
 
-try:
-    Long = float(param["Longitude"])
-    Lat = float(param["Latitude"])
-    if Long != 0 and Lat != 0:
-        location = True
-        print('location set in config')
-    else:
-        location = False
-        print('No location set in config')
-except:
-    location = False
-    print('problem reading config)')
 
-print ('checkNTP',checkNTP())
+if con == False: # no connection to SkySafari yet
+    print ('SkySafari notconnected')
+    if location == False: # gps data not received
+        Long = float(param["Longitude"])
+        Lat = float(param["Latitude"])
+        if Long != 0 and Lat != 0:
+            location = True
+            print('location set from hub.config')
+        else:
+            print('No location set in config')
 
-if location == True and checkNTP() == True:
-    con = True
+if timesync == False: # no time sync yet
+    print ('checkNTP',checkNTP())
+    timesync = checkNTP()
 
 altaz= [
     "AltAz",
@@ -494,18 +550,19 @@ up.when_pressed = doButton
 down.when_pressed = doButton
 ok.when_pressed = doButton
 
-path = Path("/dev/ttyACM0")
-if path.exists() == False:
+#time to find the eFinder USB port and open it
+efinderUsb = getUsb('Gadget')
+print (efinderUsb)
+if efinderUsb == 'not found':
     print ('Plug in eFinder')
     handpad.display('Plug in eFinder','','')
-
     while True:
-        try:
-            ser = serial.Serial('/dev/ttyACM0',baudrate=115200)
+        efinderUsb = getUsb('Gadget')
+        if efinderUsb != 'not found':
+            
             break
-        except:
-            time.sleep(1)
-
+        time.sleep(1)
+    ser = serial.Serial(efinderUsb,baudrate=115200)
     print ('USB port open, waiting for eFinder to initialise')
     handpad.display('USB port open','Nexus eFinder','is starting')
     while True:
@@ -524,7 +581,11 @@ if path.exists() == False:
             pass
         time.sleep(0.01)
 else:
-    ser = serial.Serial('/dev/ttyACM0',baudrate=115200)
+    ser = serial.Serial(efinderUsb,baudrate=115200)
+    print ('USB port already open')
+    handpad.display('USB port open','Nexus eFinder','is starting')
+
+eFinderCmd('SE' + param["Exposure"])
 reply = eFinderCmd('TSN') # just while we debug
 print ('eFinder ready')
 reply = eFinderCmd('GO')
@@ -542,16 +603,25 @@ time.sleep(0.5)
 
 while True:
 
-    if mode == "Auto":
-        if x == 1:
-            getRaDec()
+    if mode == "Auto" and x == 1:
+        getRaDec()
+    elif mode == "Auto" and x == 0:
+        getAltAz()
+    elif x == 5:
+        #print (ntp,con,location)
+        if timesync:
+            now = datetime.now(timezone.utc)
+            arr[5][1] = 'UTC: ' + now.strftime("%H:%M:%S")
         else:
-            getAltAz()
+            timesync = checkNTP()
+            if timesync == False:
+                arr[5][1] = 'No time source'
+            
+        if location:
+            arr[5][2] = 'Loc: ' + str(int(Long*10)/10) + ',' + str(int(Lat*10)/10)
+        else:
+            arr[5][2] = 'No location set'
+        handpad.display(arr[x][0], arr[x][1], arr[x][2])
     else:
         time.sleep(0.1)
-    if x == 5:
-        now = datetime.now(timezone.utc)
-        arr[5][2] = 'UTC: ' + now.strftime("%H:%M:%S")
-        handpad.display(arr[x][0], arr[x][1], arr[x][2])
-
 

@@ -16,15 +16,6 @@ class Handpad:
         global Image
         self.version = version
         self.side = tiltSide.lower()
-        if self.side == 'auto':
-            try:
-                import board
-                import adafruit_adxl34x
-                i2c = board.I2C()
-                self.tilt = adafruit_adxl34x.ADXL345(i2c)
-            except:
-                self.display("tilt set to auto","but no sensor","found")
-                sys.exit()
         libdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'drive')
         if os.path.exists(libdir):
             sys.path.append(libdir)
