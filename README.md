@@ -1,42 +1,24 @@
-# eFinder cli (aka Nexus eFinder)
+# eFinder Hub
 
-![IMG_7238](https://github.com/user-attachments/assets/6b5f1d37-ee78-47f8-93d4-b56a7282c85d)
+<img width="5712" height="4284" alt="IMG_7760" src="https://github.com/user-attachments/assets/bf81236c-1a46-49cf-b280-daf56dce0e22" />
+
 
 ## Basics
 
-eFinder cli is a digital finder for astronomical telescopes, utilising plate-solving to improve pointing accuracy.
-There are two DIY versions, 
-- Full Version, the same as the commercially available device (AstroDevices) except for your own housing.
-- Minimalist Version, with no daughter board it has no external power capability or ServoCat/SkyTracker support.
+This 'Hub' allows a Nexus eFinder to be used without a Nexus DSC Pro. 
 
 Requires:
 
-- microSd card loaded with Raspberry Pi 64bit Bookworm OS Lite (No desktop)
-- Raspberry Pi Zero 2W.
-- ADXL343 accelerometer sensor (optional)
-- Daughter Board (optional)
+- microSd card loaded with Raspberry Pi 64bit Bookworm OS inc desktop
+- Raspberry Pi 4b or 5.
 - A custom box. 3d print files available
-- A Camera, the RPi HQ Camera module is recommended, although the Arducam equivalent can work.
-- Camera lens, 25mm f1.2 cctv lens
-- A host computer (or Nexus DSC Pro)
-
-Full details at [
-](https://astrokeith.com/equipment/efinder)https://astrokeith.com/equipment/efinder
-
-The repo includes a pdf describing how to prepare a complete working micro sdCard for the Pi Zero 2W
-
-## Compatibility
-
-The eFinder cli is designed to operate alongside a host computer or Nexus DSC Pro
-
+- Waveshare 2.23" OLED display
+- 5 way navigation switch module
+- optional GPS usb dongle
 
 ## Operation
 
 ssh & Samba file sharing is enabled at efinder.local, or whatever hostname you have chosen.
 
 A forum for builders and users can be found at https://groups.io/g/eFinder
-
-## Acknowledgements and Licences
-
-The eFinder Cli uses Tetra3.
 
